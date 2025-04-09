@@ -1,0 +1,227 @@
+---
+title: "Election Maps"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(sf)
+library(maps)
+library(leaflet)
+
+```
+
+```{r}
+map(database = "county")
+
+```
+
+```{r}
+#Getting Dataset from map above 
+county_map = st_as_sf(map(database = "county", plot = FALSE, fill = TRUE))|>
+  st_transform(4326)
+county_map 
+
+```
+
+```{r}
+#map with ggplot
+
+ggplot(data = county_map) +
+  geom_sf()
+```
+
+```{r}
+data = read_csv("countypres_2000-2020.csv")
+
+```
+
+```{r}
+head(data)
+
+```
+
+```{r}
+data2012 = data|>
+  filter(year == 2012)
+
+head(data2012)
+
+```
+
+```{r}
+
+data2012 |>
+  select(state, county_name, candidate, party, candidatevotes, totalvotes)
+
+```
+
+```{r}
+
+cal2012 = data2012 |>
+  filter( state == "CALIFORNIA") |>
+  mutate(prop = candidatevotes / totalvotes,
+         ID = paste0(tolower(state), ",", tolower(county_name))) 
+
+cal2012
+```
+
+```{r}
+#california map 
+id = county_map$ID
+
+str_detect(id, "^california")
+```
+
+```{r}
+cal_county_map = county_map |>
+  filter(str_detect(ID, "^california"))
+
+cal_county_map
+```
+
+```{r}
+cal_county_map|>
+  ggplot() +
+  geom_sf()
+```
+
+```{r}
+#Joining calcountymap and caldata2012
+
+CALI = inner_join(cal_county_map, cal2012, by = "ID")
+CALI
+```
+
+```{r}
+
+CALI |>
+  group_by(county_name) |>
+  slice_max(prop) |>
+  mutate(color = case_when(
+    party == "DEMOCRAT" ~ "blue", 
+    party == "REPUBLICAN" ~ "red",
+    .default = "gray"
+  )) |>
+  ggplot() +
+  geom_sf(aes(fill = color)) +
+  scale_fill_manual(values = c("blue", "red"))
+
+  
+
+```
+
+```{r}
+
+CALI |>
+  group_by(county_name) |>
+  slice_max(prop) |>
+  mutate(prop2 = case_when(
+    party == "DEMOCRAT" ~ prop,
+    party == "REPUBLICAN" ~ -prop)) |>
+  ggplot() +
+  geom_sf(aes(fill = prop2)) +
+  scale_fill_gradient2(high = "blue", low = "red")
+
+```
+
+```{r}
+#Maps for all US counties 
+
+us_2012 = data2012 |>
+  mutate(prop = candidatevotes / totalvotes,
+         ID = paste0(tolower(state), ",", tolower(county_name)))
+         
+
+us_2012 = inner_join(county_map, us_2012, by = "ID")
+
+```
+
+```{r}
+
+us_2012 |>
+  group_by(ID) |>
+  slice_max(prop) |>
+  mutate(prop2 = case_when(
+    party == "DEMOCRAT" ~ prop,
+    party == "REPUBLICAN" ~ -prop)) |>
+  ggplot() +
+  geom_sf(aes(fill = prop2)) +
+  scale_fill_gradient2(high = "blue", low = "red")
+
+
+```
+
+
+
+MAP USING FIPS
+
+```{r}
+
+county_map = inner_join(county_map, county.fips, by = join_by(ID == polyname))
+county_map
+```
+
+```{r}
+county_map |>
+  leaflet() |>
+  addProviderTiles(provider = "NASAGIBS.ViirsEarthAtNight2012") |>
+  addPolygons(weight = 0.3, label = ~ID)
+  
+
+```
+
+```{r}
+county_map |>
+  leaflet() |>
+  addTiles() |>
+  addPolygons(weight = 0.3, label = ~ID)
+
+```
+
+```{r}
+county_map_2012 = inner_join(county_map, data2012, by = join_by(fips == county_fips))
+county_map_2012
+
+```
+
+```{r}
+county_map_2012 = county_map_2012 |>
+  mutate(prop = candidatevotes / totalvotes) |>
+  group_by(fips) |>
+  slice_max(prop) |>
+  mutate(prop2 = case_when(
+    party == "DEMOCRAT" ~ prop,
+    party == "REPUBLICAN" ~ -prop)) 
+
+county_map_2012
+
+```
+```{r}
+pal =  colorNumeric(
+    palette = "RdBu",
+    domain = county_map_2012$prop2)
+
+```
+
+```{r}
+county_map_2012 |>
+  leaflet() |>
+  addTiles() |>
+  addPolygons(weight = 0.3, label = ~ID, fillColor = ~pal(prop2), fillOpacity = 0.8 )
+
+```
+
+```{r}
+
+county_map_2012 |>
+  leaflet() |>
+  addTiles() |>
+  addPolygons(weight = 0.3, 
+              label = ~paste(ID, round(prop, 2)), 
+              fillColor = ~pal(prop2), 
+              fillOpacity = 0.8)
+
+
+```

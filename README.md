@@ -26,7 +26,7 @@ library(shiny)
 
 runGitHub(
   repo = "election-maps",
-  username = "jazmmiine")
+  username = "jazminegamboa")
   
 ```
 
